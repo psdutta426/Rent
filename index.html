@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Parashar's Home Switch Control</title>
+
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #d9f3ff, #f9f9f9);
+}
+
+.container {
+  position: relative;
+  width: 90%;
+  max-width: 450px;
+  padding: 30px;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+  text-align: center;
+  backdrop-filter: blur(8px);
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+  z-index: 1;
+}
+.show { opacity: 1; transform: translateY(0); }
+.container::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: url('https://raw.githubusercontent.com/psdutta426/Home/main/TheMathClassroom.jpg') no-repeat center center/cover;
+  opacity: 0.25;
+  z-index: -1;
+}
+
+h2 { color: #111; margin-bottom: 25px; font-weight: 600; }
+
+input {
+  padding: 12px; width: 85%; margin: 10px 0;
+  border-radius: 10px; border: 1px solid #ccc; font-size: 16px;
+}
+
+button {
+  border: none; border-radius: 10px; padding: 15px; margin: 10px;
+  font-size: 16px; transition: all 0.3s ease; cursor: pointer;
+}
+
+#loginBtn { width: 100%; background: #0078d7; color: white; }
+#loginBtn:hover { background: #005fa3; }
+
+label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #333;
+  cursor: pointer;
+  user-select: none;
+}
+input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+
+.switch-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: 15px; margin-bottom: 15px;
+}
+.switch-grid .switch-btn:nth-child(5) { grid-column: 1 / -1; }
+
+.switch-btn {
+  background: #f44336; color: white; font-weight: bold;
+  border-radius: 15px; height: 60px; font-size: 16px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  transition: all 0.3s ease;
+}
+.switch-btn.on {
+  background: #4CAF50;
+  box-shadow: 0 4px 12px rgba(76,175,80,0.5);
+}
+
+.action-btn { background: #0078d7; color: white; width: 45%; }
+.logout-btn { background: #555; color: white; width: 100%; margin-top: 10px; }
+#loginStatus { color: red; font-size: 14px; height: 20px; }
+
+#loadingScreen {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.95);
+  font-size: 18px;
+  color: #333;
+  z-index: 999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+#loadingScreen.show { opacity: 1; pointer-events: all; }
+#loadingMessage { text-align: center; }
+
+.spinner {
+  width: 30px; height: 30px;
+  border: 3px solid #ccc;
+  border-top-color: #0078d7;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 12px;
+}
+@keyframes spin { 100% { transform: rotate(360deg); } }
+
+/* Voice indicator bars */
+#voiceIndicator {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  height: 50px;
+  gap: 5px;
+  margin: 15px auto;
+}
+#voiceIndicator .bar {
+  width: 6px;
+  height: 10px;
+  background: linear-gradient(to top, #0078d7, #00cfff);
+  border-radius: 3px;
+  transition: height 0.05s ease, background 0.05s ease;
+}
+</style>
+</head>
+
+<body>
+
+<!-- LOADING SCREEN -->
+<div id="loadingScreen">
+  <div class="spinner"></div>
+  <div id="loadingMessage">Checking saved session…</div>
+</div>
+
+<!-- LOGIN PAGE -->
+<div class="container" id="loginPage">
+  <h2>Login</h2>
+  <input type="text" id="username" placeholder="Username" required /><br />
+  <input type="password" id="password" placeholder="Password" required /><br />
+  <label><input type="checkbox" id="rememberMe"> Remember Me</label>
+  <button id="loginBtn">Login</button>
+  <div id="loginStatus"></div>
+</div>
+
+<!-- CONTROL PAGE -->
+<div class="container" id="controlPage" style="display:none;">
+  <h2>Parashar's Home Switch Control</h2>
+
+  <div class="switch-grid">
+    <button class="switch-btn" id="btn0" onclick="toggleSwitch(0)">Plug</button>
+    <button class="switch-btn" id="btn1" onclick="toggleSwitch(1)">Tubelight</button>
+    <button class="switch-btn" id="btn2" onclick="toggleSwitch(2)">Fan</button>
+    <button class="switch-btn" id="btn3" onclick="toggleSwitch(3)">Bulb</button>
+    <button class="switch-btn" id="btn4" onclick="toggleSwitch(4)">Backup</button>
+  </div>
+
+  <div>
+    <button class="action-btn" onclick="bulkUpdateSequential(true)">All ON</button>
+    <button class="action-btn" onclick="bulkUpdateSequential(false)">All OFF</button>
+    <button class="action-btn" onclick="startListening()">🎤 Voice Command</button>
+    <div id="voiceIndicator" style="display:none;">
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+    </div>
+  </div>
+
+  <button class="logout-btn" onclick="logout()">Logout</button>
+</div>
+
+<script>
+const workerURL = "https://nodemcubittu.psdutta426.workers.dev";
+let authToken = null;
+let refreshInterval;
+const switches = [
+  { id: "btn0", name: "Plug", pin: "v5" },
+  { id: "btn1", name: "Tubelight", pin: "v2" },
+  { id: "btn2", name: "Fan", pin: "v3" },
+  { id: "btn3", name: "Bulb", pin: "v4" },
+  { id: "btn4", name: "Backup", pin: "v1" }
+];
+
+const loginBtn = document.getElementById("loginBtn");
+const usernameInput = document.getElementById("username");
+const passwordInput = document.getElementById("password");
+const loadingScreen = document.getElementById("loadingScreen");
+const loginStatus = document.getElementById("loginStatus");
+const voiceIndicator = document.getElementById("voiceIndicator");
+
+loginBtn.addEventListener("click", login);
+usernameInput.addEventListener("keypress", e => { if(e.key==="Enter") passwordInput.focus(); });
+passwordInput.addEventListener("keypress", e => { if(e.key==="Enter") login(); });
+window.addEventListener("load", autoLogin);
+
+async function fetchWithAuth(url, options={}) {
+  const headers = new Headers(options.headers || {});
+  if(authToken) headers.append("Authorization", `Bearer ${authToken}`);
+  const res = await fetch(url, {...options, headers});
+  if(!res.ok){
+    if(res.status===401){ alert("Session expired."); logout(); throw new Error("Auth failed"); }
+    throw new Error("Network error");
+  }
+  return res;
+}
+
+async function autoLogin() {
+  loadingScreen.classList.add("show");
+  const saved = localStorage.getItem("authToken");
+  if(saved){
+    authToken = saved;
+    try { await fetchWithAuth(`${workerURL}/status`); showControl(); return; }
+    catch { localStorage.removeItem("authToken"); }
+  }
+  setTimeout(()=>{ loadingScreen.classList.remove("show"); document.getElementById("loginPage").classList.add("show"); }, 500);
+}
+
+async function login(){
+  const usernameVal = usernameInput.value.trim();
+  const passwordVal = passwordInput.value.trim();
+  const remember = document.getElementById("rememberMe").checked;
+  if(!usernameVal || !passwordVal){ loginStatus.textContent="Enter username & password."; return; }
+
+  try {
+    const res = await fetch(`${workerURL}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: usernameVal, password: passwordVal })
+    });
+    if(!res.ok) throw new Error();
+    const data = await res.json();
+    authToken = data.token;
+    if(remember) localStorage.setItem("authToken", authToken);
+    showControl();
+  } catch { loginStatus.textContent="Invalid login."; }
+}
+
+function showControl(){
+  loadingScreen.classList.remove("show");
+  setTimeout(()=> loadingScreen.style.display="none",500);
+  document.getElementById("loginPage").style.display="none";
+  const panel = document.getElementById("controlPage");
+  panel.style.display="block";
+  setTimeout(()=> panel.classList.add("show"), 50);
+  loadStatus();
+  refreshInterval = setInterval(loadStatus, 2000);
+}
+
+async function loadStatus(){
+  try {
+    const res = await fetchWithAuth(`${workerURL}/status`);
+    const status = await res.json();
+    switches.forEach(sw=>{
+      const btn = document.getElementById(sw.id);
+      const isOn = status[sw.pin]==="0";
+      btn.classList.toggle("on", isOn);
+      btn.textContent = `${sw.name}: ${isOn?"ON":"OFF"}`;
+    });
+  } catch(err){ console.error(err); }
+}
+
+async function toggleSwitch(index){
+  const sw = switches[index];
+  const btn = document.getElementById(sw.id);
+  const wasOn = btn.classList.contains("on");
+  const newVal = wasOn ? "1":"0";
+  btn.disabled = true;
+  btn.classList.toggle("on", !wasOn);
+  btn.textContent = `${sw.name}: ${!wasOn?"ON":"OFF"}`;
+  try { await fetchWithAuth(`${workerURL}/update`, {method:"POST",headers:{"Content-Type":"application/json"}, body:JSON.stringify({pin:sw.pin,value:newVal})}); }
+  catch { btn.classList.toggle("on", wasOn); btn.textContent=`${sw.name}: ${wasOn?"ON":"OFF"}`; }
+  finally { btn.disabled=false; }
+}
+
+async function bulkUpdateSequential(turnOn){
+  for(const sw of switches){
+    try {
+      await fetchWithAuth(`${workerURL}/update`, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pin:sw.pin,value:turnOn?"0":"1"})});
+      const btn=document.getElementById(sw.id);
+      btn.classList.toggle("on",turnOn);
+      btn.textContent=`${sw.name}: ${turnOn?"ON":"OFF"}`;
+      await new Promise(r=>setTimeout(r,40)); // delay 40ms
+    } catch(err){ console.error("Failed:", sw.pin); }
+  }
+}
+
+function logout(){
+  clearInterval(refreshInterval);
+  localStorage.removeItem("authToken");
+  authToken=null;
+  document.getElementById("controlPage").style.display="none";
+  const loginPage=document.getElementById("loginPage");
+  loginPage.style.display="block";
+  setTimeout(()=>loginPage.classList.add("show"),50);
+  usernameInput.value=""; passwordInput.value=""; document.getElementById("rememberMe").checked=false;
+  loginStatus.textContent="";
+}
+
+/* VOICE COMMAND & DYNAMIC BARS */
+let audioContext, analyser, microphone, dataArray, animationId;
+
+function speak(message){
+  const utter=new SpeechSynthesisUtterance(message);
+  utter.rate=1;
+  speechSynthesis.speak(utter);
+}
+
+function startListening(){
+  if(!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)){
+    alert("Your browser does not support voice commands."); return;
+  }
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const recognition = new SpeechRecognition();
+  recognition.lang='en-US';
+  recognition.interimResults=false;
+  recognition.maxAlternatives=1;
+
+  voiceIndicator.style.display='flex';
+
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(stream=>{
+    audioContext=new (window.AudioContext || window.webkitAudioContext)();
+    microphone=audioContext.createMediaStreamSource(stream);
+    analyser=audioContext.createAnalyser();
+    analyser.fftSize=256;
+    dataArray=new Uint8Array(analyser.frequencyBinCount);
+    microphone.connect(analyser);
+    animateVoiceIndicator();
+  });
+
+  recognition.start();
+  recognition.onresult = event => handleVoiceCommand(event.results[0][0].transcript.toLowerCase());
+  recognition.onend = stopVoiceIndicator;
+  recognition.onerror = () => { stopVoiceIndicator(); speak("Sorry, I did not hear that."); }
+}
+
+function animateVoiceIndicator(){
+  const bars = document.querySelectorAll("#voiceIndicator .bar");
+  animationId = requestAnimationFrame(animateVoiceIndicator);
+
+  analyser.getByteFrequencyData(dataArray);
+  const step = Math.floor(dataArray.length / bars.length);
+
+  bars.forEach((bar, i) => {
+    const value = dataArray[i * step];
+    const height = Math.max(5, (value / 255) * 50);
+    bar.style.height = height + "px";
+
+    const colorValue = Math.min(255, value + 50);
+    bar.style.background = `rgb(0, ${colorValue}, 255)`;
+  });
+}
+
+function stopVoiceIndicator() {
+  voiceIndicator.style.display = 'none';
+  cancelAnimationFrame(animationId);
+  if(audioContext) audioContext.close();
+}
+
+function handleVoiceCommand(command){
+  let executed=false;
+  switches.forEach((sw,index)=>{
+    if(command.includes(sw.name.toLowerCase()) && (command.includes("on") || command.includes("off"))){
+      const turnOn = command.includes("on");
+      toggleSwitchVoice(index,turnOn);
+      executed=true;
+    }
+  });
+  if(!executed){
+    if(command.includes("all on")){ bulkUpdateSequential(true); speak("Turning all switches on"); executed=true; }
+    else if(command.includes("all off")){ bulkUpdateSequential(false); speak("Turning all switches off"); executed=true; }
+  }
+  if(!executed) speak("Command not recognized");
+}
+
+async function toggleSwitchVoice(index,turnOn){
+  const sw = switches[index];
+  const btn=document.getElementById(sw.id);
+  const isOn=btn.classList.contains("on");
+  if(isOn===turnOn){ speak(`${sw.name} is already ${turnOn?"on":"off"}`); return; }
+
+  btn.disabled=true;
+  btn.classList.toggle("on",turnOn);
+  btn.textContent=`${sw.name}: ${turnOn?"ON":"OFF"}`;
+
+  try{
+    await fetchWithAuth(`${workerURL}/update`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pin:sw.pin,value:turnOn?"0":"1"})});
+    speak(`${sw.name} turned ${turnOn?"on":"off"}`);
+  } catch {
+    btn.classList.toggle("on",!turnOn);
+    btn.textContent=`${sw.name}: ${!turnOn?"ON":"OFF"}`;
+    speak(`Failed to turn ${turnOn?"on":"off"} ${sw.name}`);
+  } finally { btn.disabled=false; }
+}
+</script>
+</body>
+</html>
